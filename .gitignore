@@ -1,0 +1,5 @@
+*.docx
+*.pdf
+*.rar
+*.txt
+!.gitignore
