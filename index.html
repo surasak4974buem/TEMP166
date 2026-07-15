@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเฝ้าติดตามอุณหภูมิและอุปกรณ์เก็บรักษายา | IoT Smart Pharmacy Dashboard</title>
+    
+    <!-- Google Fonts: Inter & Noto Sans Thai -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- ApexCharts CDN for Premium Interactive Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+    <style>
+        :root {
+            /* Theme Color Palette */
+            --bg-base: #080b11;
+            --bg-surface: rgba(17, 24, 39, 0.7);
+            --bg-surface-hover: rgba(26, 36, 57, 0.85);
+            --border-glow: rgba(255, 255, 255, 0.07);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+
+            /* State Colors */
+            --color-safe: #10b981;
+            --color-safe-glow: rgba(16, 185, 129, 0.15);
+            --color-safe-border: rgba(16, 185, 129, 0.3);
+            
+            --color-alert: #ef4444;
+            --color-alert-glow: rgba(239, 68, 68, 0.18);
+            --color-alert-border: rgba(239, 68, 68, 0.45);
+
+            --color-warning: #f59e0b;
+            --color-warning-glow: rgba(245, 158, 11, 0.15);
+            --color-warning-border: rgba(245, 158, 11, 0.35);
+
+            /* Device Specific Colors */
+            --color-fridge: #06b6d4; /* Ice blue for Refrigerator */
+            --color-room: #14b8a6; /* Teal for Room Temp */
+            --color-humidity: #8b5cf6; /* Violet for Humidity */
+
+            /* Font Family */
+            --font-main: 'Inter', 'Noto Sans Thai', sans-serif;
+            
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Container Layout */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Header Style */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem 1.5rem;
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-title-area {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--color-fridge), var(--color-humidity));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+        }
+
+        .header-text h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+
+        .header-text p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        /* Live Sync Indicator & Refresh Countdown */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 0.5rem 0.85rem;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--color-safe);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--color-safe);
+            display: inline-block;
+        }
+
+        .status-dot.pulsing {
+            animation: pulse-green 1.5s infinite ease-in-out;
+        }
+
+        .status-dot.offline {
+            background-color: var(--color-alert);
+            box-shadow: 0 0 8px var(--color-alert);
+            animation: pulse-red 1.5s infinite ease-in-out;
+        }
+
+        .timer-progress {
+            width: 60px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .timer-bar {
+            height: 100%;
+            width: 100%;
+            background: var(--color-fridge);
+            transform-origin: left;
+            transition: transform 1s linear;
+        }
+
+        /* Dashboard Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        /* Base Card Styling with Glassmorphism */
+        .card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glow);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        /* Alert state card pulse glow */
+        .card.alert-active {
+            border-color: var(--color-alert-border);
+            background: linear-gradient(180deg, var(--bg-surface) 0%, var(--color-alert-glow) 100%);
+            box-shadow: 0 8px 32px var(--color-alert-glow);
+            animation: border-alert-pulse 2s infinite ease-in-out;
+        }
+
+        .card-header-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.25rem;
+        }
+
+        .card-title h2 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.15rem;
+        }
+
+        .card-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.3rem 0.65rem;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .badge-safe {
+            background-color: var(--color-safe-glow);
+            color: var(--color-safe);
+            border: 1px solid var(--color-safe-border);
+        }
+
+        .badge-alert {
+            background-color: var(--color-alert-glow);
+            color: var(--color-alert);
+            border: 1px solid var(--color-alert-border);
+            animation: text-pulse 1.5s infinite ease-in-out;
+        }
+
+        /* Numerical Reading Display */
+        .value-display {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 1.25rem;
+            gap: 0.25rem;
+        }
+
+        .main-value {
+            font-size: 3.25rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .unit {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Min/Max 24h Summary Grid */
+        .minmax-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 0.75rem;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+        }
+
+        .minmax-box {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .minmax-box:first-child {
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .minmax-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .minmax-val {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Chart container */
+        .chart-container {
+            width: 100%;
+            height: 220px;
+            margin-top: auto;
+        }
+
+        /* System Info and Calibration Footer Panel */
+        .system-info-panel {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 1.25rem 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            align-items: center;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .info-block {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        .info-icon {
+            width: 38px;
+            height: 38px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+        }
+
+        .info-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 0.1rem;
+        }
+
+        .info-link {
+            color: var(--color-fridge);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            transition: color 0.2s;
+        }
+
+        .info-link:hover {
+            color: #22d3ee;
+            text-decoration: underline;
+        }
+
+        /* Button Styling */
+        .btn {
+            background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 0.6rem 1.1rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease-in-out;
+            font-family: var(--font-main);
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-fridge), #0891b2);
+            border: none;
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0891b2, #0e7490);
+            box-shadow: 0 6px 16px rgba(6, 182, 212, 0.4);
+        }
+
+        /* Footer copy */
+        footer {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 1.5rem;
+            padding-bottom: 0.5rem;
+        }
+
+        /* Animations */
+        @keyframes pulse-green {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+            }
+            50% {
+                transform: scale(1.2);
+                box-shadow: 0 0 16px rgba(16, 185, 129, 0.9);
+            }
+        }
+
+        @keyframes pulse-red {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.25);
+                box-shadow: 0 0 18px rgba(239, 68, 68, 0.9);
+                opacity: 0.7;
+            }
+        }
+
+        @keyframes border-alert-pulse {
+            0%, 100% {
+                border-color: rgba(239, 68, 68, 0.45);
+                box-shadow: 0 8px 32px rgba(239, 68, 68, 0.15);
+            }
+            50% {
+                border-color: rgba(239, 68, 68, 0.8);
+                box-shadow: 0 8px 32px rgba(239, 68, 68, 0.35);
+            }
+        }
+
+        @keyframes text-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.65; }
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .header-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <!-- HEADER PANEL -->
+    <header>
+        <div class="header-title-area">
+            <div class="header-icon">
+                <!-- SVG Cross/Shield Icon -->
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="header-text">
+                <h1 id="channel-name">ระบบเฝ้าติดตามตู้เก็บยาและห้องจัดยา</h1>
+                <p>มาตรฐาน GSP/GDP Smart Cold Chain Monitoring System</p>
+            </div>
+        </div>
+        
+        <div class="header-controls">
+            <div class="sync-status">
+                <span id="sync-dot" class="status-dot pulsing"></span>
+                <span id="sync-text">อัปเดตข้อมูลแล้ว</span>
+                <div class="timer-progress">
+                    <div id="refresh-timer" class="timer-bar"></div>
+                </div>
+            </div>
+            <button id="btn-refresh" class="btn" onclick="fetchDashboardData()">
+                <!-- SVG Refresh Icon -->
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                รีเฟรชสด
+            </button>
+            <button id="btn-export" class="btn btn-primary" onclick="exportCSV()">
+                <!-- SVG Download Icon -->
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                ส่งออก CSV
+            </button>
+        </div>
+    </header>
+
+    <!-- DASHBOARD KPI GRID -->
+    <div class="dashboard-grid">
+        
+        <!-- CARD 1: MEDICINE REFRIGERATOR TEMPERATURE (FIELD 3) -->
+        <div id="card-fridge" class="card">
+            <div class="card-header-area">
+                <div class="card-title">
+                    <h2>ตู้เย็นรักษายาและวัคซีน</h2>
+                    <div class="card-subtitle">Medicine Refrigerator (Field 3)</div>
+                </div>
+                <div id="badge-fridge" class="card-badge badge-safe">
+                    <span class="status-dot" style="background:#10b981; box-shadow:none; width:6px; height:6px;"></span>
+                    ปกติ
+                </div>
+            </div>
+            
+            <div class="value-display">
+                <span id="val-fridge" class="main-value">--.-</span>
+                <span class="unit">°C</span>
+            </div>
+            
+            <div class="minmax-grid">
+                <div class="minmax-box">
+                    <span class="minmax-label">24h ต่ำสุด</span>
+                    <span id="min-fridge" class="minmax-val">--.- °C</span>
+                </div>
+                <div class="minmax-box">
+                    <span class="minmax-label">24h สูงสุด</span>
+                    <span id="max-fridge" class="minmax-val">--.- °C</span>
+                </div>
+            </div>
+
+            <div class="card-subtitle" style="font-size:0.7rem; margin-bottom:0.25rem;">เกณฑ์มาตรฐาน: 2.0 °C ถึง 8.0 °C</div>
+            <div class="chart-container">
+                <div id="chart-fridge"></div>
+            </div>
+        </div>
+
+        <!-- CARD 2: PHARMACY ROOM TEMPERATURE (FIELD 1) -->
+        <div id="card-room" class="card">
+            <div class="card-header-area">
+                <div class="card-title">
+                    <h2>ห้องจัดยาและเก็บเวชภัณฑ์</h2>
+                    <div class="card-subtitle">Pharmacy Room Temp (Field 1)</div>
+                </div>
+                <div id="badge-room" class="card-badge badge-safe">
+                    <span class="status-dot" style="background:#10b981; box-shadow:none; width:6px; height:6px;"></span>
+                    ปกติ
+                </div>
+            </div>
+            
+            <div class="value-display">
+                <span id="val-room" class="main-value">--.-</span>
+                <span class="unit">°C</span>
+            </div>
+            
+            <div class="minmax-grid">
+                <div class="minmax-box">
+                    <span class="minmax-label">24h ต่ำสุด</span>
+                    <span id="min-room" class="minmax-val">--.- °C</span>
+                </div>
+                <div class="minmax-box">
+                    <span class="minmax-label">24h สูงสุด</span>
+                    <span id="max-room" class="minmax-val">--.- °C</span>
+                </div>
+            </div>
+
+            <div class="card-subtitle" style="font-size:0.7rem; margin-bottom:0.25rem;">เกณฑ์มาตรฐาน: 18.0 °C ถึง 25.0 °C</div>
+            <div class="chart-container">
+                <div id="chart-room"></div>
+            </div>
+        </div>
+
+        <!-- CARD 3: RELATIVE HUMIDITY (FIELD 2) -->
+        <div id="card-humidity" class="card">
+            <div class="card-header-area">
+                <div class="card-title">
+                    <h2>ความชื้นสัมพัทธ์ในห้องจัดยา</h2>
+                    <div class="card-subtitle">Relative Humidity (Field 2)</div>
+                </div>
+                <div id="badge-humidity" class="card-badge badge-safe">
+                    <span class="status-dot" style="background:#10b981; box-shadow:none; width:6px; height:6px;"></span>
+                    ปกติ
+                </div>
+            </div>
+            
+            <div class="value-display">
+                <span id="val-humidity" class="main-value">--.-</span>
+                <span class="unit">% RH</span>
+            </div>
+            
+            <div class="minmax-grid">
+                <div class="minmax-box">
+                    <span class="minmax-label">24h ต่ำสุด</span>
+                    <span id="min-humidity" class="minmax-val">--.- %</span>
+                </div>
+                <div class="minmax-box">
+                    <span class="minmax-label">24h สูงสุด</span>
+                    <span id="max-humidity" class="minmax-val">--.- %</span>
+                </div>
+            </div>
+
+            <div class="card-subtitle" style="font-size:0.7rem; margin-bottom:0.25rem;">เกณฑ์มาตรฐาน: ไม่เกิน 60.0% RH</div>
+            <div class="chart-container">
+                <div id="chart-humidity"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- COMPLIANCE & METADATA PANEL -->
+    <div class="system-info-panel">
+        
+        <div class="info-block">
+            <div class="info-icon">
+                <!-- Location pin -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div class="info-content">
+                <span class="info-label">สถานที่ติดตั้ง (พิกัด GSP)</span>
+                <span class="info-value" id="info-location">
+                    <span id="coords-text">กำลังโหลดพิกัด...</span>
+                    <a id="btn-map" href="#" target="_blank" class="info-link" style="margin-left:5px;">[แผนที่]</a>
+                </span>
+            </div>
+        </div>
+
+        <div class="info-block">
+            <div class="info-icon">
+                <!-- Calibration/Tool -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            </div>
+            <div class="info-content">
+                <span class="info-label">สถานะการสอบเทียบ (Calibration)</span>
+                <span class="info-value" style="color:var(--color-warning);">รอกำหนดส่งสอบเทียบใหม่ (ส.ค. 2026)</span>
+            </div>
+        </div>
+
+        <div class="info-block">
+            <div class="info-icon">
+                <!-- Clock / Sync -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="info-content">
+                <span class="info-label">เวลาส่งข้อมูลล่าสุด (Last Telemetry)</span>
+                <span class="info-value" id="info-last-time">--/--/---- --:--:--</span>
+            </div>
+        </div>
+
+        <div class="info-block" style="justify-content: flex-end;">
+            <div style="font-size:0.8rem; text-align:right; color:var(--text-muted);">
+                ThingSpeak Channel: <span id="info-channel-id" style="color:var(--text-secondary); font-weight:600;">2202414</span><br>
+                อุปกรณ์: <span style="color:var(--text-secondary); font-weight:600;">ESP32 IoT Node v2.1</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+        ระบบเฝ้าติดตามนี้เป็นเครื่องมืออิเล็กทรอนิกส์ส่วนงานเฝ้าระวังความปลอดภัยยา อ้างอิงตามมาตรฐานวิธีการหลักปฏิบัติที่ดีในการกระจายยา (GDP) &copy; 2026
+    </footer>
+
+</div>
+
+<script>
+    // Configuration & Safety Thresholds
+    const channelId = '2202414';
+    const totalResults = 100; // Get last 100 items for historical graph
+    const refreshIntervalSeconds = 30; // Autorefresh every 30 seconds
+
+    // Thresholds Definition
+    const thresholds = {
+        fridge: { min: 2.0, max: 8.0 },
+        room: { min: 18.0, max: 25.0 },
+        humidity: { max: 60.0 }
+    };
+
+    // Global variables to store charts
+    let chartFridge = null;
+    let chartRoom = null;
+    let chartHumidity = null;
+    
+    // Store loaded feed data globally for CSV export
+    let loadedFeeds = [];
+    let channelInfo = {};
+
+    // Progress bar control
+    let secondsPassed = 0;
+    let timerInterval = null;
+
+    // Standard Thai Date-Time Formatter
+    function formatDateTime(isoString) {
+        if (!isoString) return '--/--/---- --:--:--';
+        const date = new Date(isoString);
+        return date.toLocaleString('th-TH', { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }) + ' น.';
+    }
+
+    // Initialize Timer Bar Animation
+    function resetTimer() {
+        clearInterval(timerInterval);
+        secondsPassed = 0;
+        const bar = document.getElementById('refresh-timer');
+        bar.style.transition = 'none';
+        bar.style.transform = 'scaleX(1)';
+        
+        // Force reflow
+        bar.offsetHeight;
+        
+        bar.style.transition = `transform ${refreshIntervalSeconds}s linear`;
+        bar.style.transform = 'scaleX(0)';
+
+        timerInterval = setInterval(() => {
+            secondsPassed++;
+            if (secondsPassed >= refreshIntervalSeconds) {
+                fetchDashboardData();
+            }
+        }, 1000);
+    }
+
+    // Main Function to Fetch Data from ThingSpeak
+    async function fetchDashboardData() {
+        document.getElementById('sync-text').innerText = 'กำลังอัปเดต...';
+        document.getElementById('sync-dot').classList.remove('pulsing');
+        
+        const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?results=${totalResults}`;
+        
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('API Request Failed');
+            
+            const data = await response.json();
+            
+            // Store globally
+            loadedFeeds = data.feeds || [];
+            channelInfo = data.channel || {};
+
+            // Parse and Display Data
+            processDashboardData(loadedFeeds, channelInfo);
+            
+            document.getElementById('sync-text').innerText = 'อัปเดตสดเสร็จสิ้น';
+            document.getElementById('sync-dot').classList.add('pulsing');
+            document.getElementById('sync-dot').classList.remove('offline');
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            document.getElementById('sync-text').innerText = 'การเชื่อมต่อผิดพลาด';
+            document.getElementById('sync-dot').classList.remove('pulsing');
+            document.getElementById('sync-dot').classList.add('offline');
+        } finally {
+            resetTimer();
+        }
+    }
+
+    // Process and Bind Data to Dashboard UI Components
+    function processDashboardData(feeds, channel) {
+        if (feeds.length === 0) return;
+
+        // Set Channel Metadata
+        document.getElementById('channel-name').innerText = channel.name || 'อุณหภูมิตู้เย็นเก็บยา';
+        document.getElementById('info-channel-id').innerText = channel.id || channelId;
+        
+        if (channel.latitude && channel.longitude) {
+            document.getElementById('coords-text').innerText = `${channel.latitude}, ${channel.longitude}`;
+            document.getElementById('btn-map').href = `https://www.google.com/maps/search/?api=1&query=${channel.latitude},${channel.longitude}`;
+        }
+
+        // Get values (Latest non-null values for each metric)
+        const latestData = getLatestValues(feeds);
+        
+        // Bind current values
+        bindValue('val-fridge', latestData.fridge, '°C');
+        bindValue('val-room', latestData.room, '°C');
+        bindValue('val-humidity', latestData.humidity, '% RH');
+
+        // Calculate Min/Max in 24 hours (or in our current feeds buffer)
+        const stats = calculateStats(feeds);
+        
+        // Bind Min/Max
+        bindMinMax('min-fridge', 'max-fridge', stats.fridge);
+        bindMinMax('min-room', 'max-room', stats.room);
+        bindMinMax('min-humidity', 'max-humidity', stats.humidity);
+
+        // Evaluate Alarm Alerts based on thresholds
+        evaluateAlerts(latestData);
+
+        // Bind Telemetry Time
+        if (latestData.timestamp) {
+            document.getElementById('info-last-time').innerText = formatDateTime(latestData.timestamp);
+        }
+
+        // Prepare and Update ApexCharts
+        renderCharts(feeds);
+    }
+
+    // Get the most recent valid values from feed data (skipping null values)
+    function getLatestValues(feeds) {
+        let fridge = null;
+        let room = null;
+        let humidity = null;
+        let timestamp = null;
+
+        // Traverse backwards to find the last non-null values
+        for (let i = feeds.length - 1; i >= 0; i--) {
+            const feed = feeds[i];
+            
+            // field3 is Refrigerator Temperature
+            if (fridge === null && feed.field3 !== null && feed.field3 !== undefined && feed.field3 !== '') {
+                fridge = parseFloat(feed.field3);
+                if (!timestamp) timestamp = feed.created_at;
+            }
+            // field1 is Room Temperature
+            if (room === null && feed.field1 !== null && feed.field1 !== undefined && feed.field1 !== '') {
+                room = parseFloat(feed.field1);
+                if (!timestamp) timestamp = feed.created_at;
+            }
+            // field2 is Humidity
+            if (humidity === null && feed.field2 !== null && feed.field2 !== undefined && feed.field2 !== '') {
+                humidity = parseFloat(feed.field2);
+                if (!timestamp) timestamp = feed.created_at;
+            }
+
+            if (fridge !== null && room !== null && humidity !== null) break;
+        }
+
+        return { fridge, room, humidity, timestamp };
+    }
+
+    // Helper to safely bind single reading values
+    function bindValue(elementId, val, unitString) {
+        const el = document.getElementById(elementId);
+        if (val !== null && !isNaN(val)) {
+            el.innerText = val.toFixed(1);
+        } else {
+            el.innerText = '--.-';
+        }
+    }
+
+    // Helper to safely bind Min/Max stats
+    function bindMinMax(minId, maxId, statObj) {
+        const minEl = document.getElementById(minId);
+        const maxEl = document.getElementById(maxId);
+        
+        if (statObj.min !== Infinity) {
+            minEl.innerText = statObj.min.toFixed(1) + ' ';
+        } else {
+            minEl.innerText = '--.-';
+        }
+
+        if (statObj.max !== -Infinity) {
+            maxEl.innerText = statObj.max.toFixed(1) + ' ';
+        } else {
+            maxEl.innerText = '--.-';
+        }
+    }
+
+    // Calculate Min/Max stats over the fetched data buffer
+    function calculateStats(feeds) {
+        const stats = {
+            fridge: { min: Infinity, max: -Infinity },
+            room: { min: Infinity, max: -Infinity },
+            humidity: { min: Infinity, max: -Infinity }
+        };
+
+        feeds.forEach(feed => {
+            if (feed.field3 !== null && feed.field3 !== '') {
+                const val = parseFloat(feed.field3);
+                if (!isNaN(val)) {
+                    if (val < stats.fridge.min) stats.fridge.min = val;
+                    if (val > stats.fridge.max) stats.fridge.max = val;
+                }
+            }
+            if (feed.field1 !== null && feed.field1 !== '') {
+                const val = parseFloat(feed.field1);
+                if (!isNaN(val)) {
+                    if (val < stats.room.min) stats.room.min = val;
+                    if (val > stats.room.max) stats.room.max = val;
+                }
+            }
+            if (feed.field2 !== null && feed.field2 !== '') {
+                const val = parseFloat(feed.field2);
+                if (!isNaN(val)) {
+                    if (val < stats.humidity.min) stats.humidity.min = val;
+                    if (val > stats.humidity.max) stats.humidity.max = val;
+                }
+            }
+        });
+
+        return stats;
+    }
+
+    // Evaluate current readings against standards to toggle alarm UI
+    function evaluateAlerts(latest) {
+        // 1. Refrigerator Alarm (2.0°C - 8.0°C)
+        const fridgeCard = document.getElementById('card-fridge');
+        const fridgeBadge = document.getElementById('badge-fridge');
+        if (latest.fridge !== null) {
+            if (latest.fridge < thresholds.fridge.min || latest.fridge > thresholds.fridge.max) {
+                triggerAlarm(fridgeCard, fridgeBadge, 'อุณหภูมิหลุดเกณฑ์');
+            } else {
+                clearAlarm(fridgeCard, fridgeBadge);
+            }
+        }
+
+        // 2. Room Temp Alarm (18.0°C - 25.0°C)
+        const roomCard = document.getElementById('card-room');
+        const roomBadge = document.getElementById('badge-room');
+        if (latest.room !== null) {
+            if (latest.room < thresholds.room.min || latest.room > thresholds.room.max) {
+                triggerAlarm(roomCard, roomBadge, 'อุณหภูมิห้องจัดยาสูง/ต่ำเกิน');
+            } else {
+                clearAlarm(roomCard, roomBadge);
+            }
+        }
+
+        // 3. Humidity Alarm (<= 60.0% RH)
+        const humidityCard = document.getElementById('card-humidity');
+        const humidityBadge = document.getElementById('badge-humidity');
+        if (latest.humidity !== null) {
+            if (latest.humidity > thresholds.humidity.max) {
+                triggerAlarm(humidityCard, humidityBadge, 'ความชื้นสัมพัทธ์สูงเกิน');
+            } else {
+                clearAlarm(humidityCard, humidityBadge);
+            }
+        }
+    }
+
+    function triggerAlarm(cardEl, badgeEl, text) {
+        cardEl.classList.add('alert-active');
+        badgeEl.className = 'card-badge badge-alert';
+        badgeEl.innerHTML = `<span class="status-dot offline" style="width:6px; height:6px; box-shadow:none;"></span> ${text}`;
+    }
+
+    function clearAlarm(cardEl, badgeEl) {
+        cardEl.classList.remove('alert-active');
+        badgeEl.className = 'card-badge badge-safe';
+        badgeEl.innerHTML = `<span class="status-dot" style="background:#10b981; box-shadow:none; width:6px; height:6px;"></span> ปลอดภัย`;
+    }
+
+    // Premium Area Chart Options Generator
+    function getChartOptions(name, dataPoints, color, minBound, maxBound) {
+        const hasMinMaxAnnotation = minBound !== undefined && maxBound !== undefined;
+        
+        let annotations = {};
+        if (hasMinMaxAnnotation) {
+            annotations = {
+                yaxis: [
+                    {
+                        y: minBound,
+                        borderColor: 'rgba(239, 68, 68, 0.4)',
+                        borderWidth: 1.5,
+                        strokeDashArray: 3,
+                        label: {
+                            borderColor: 'rgba(239, 68, 68, 0.5)',
+                            style: { color: '#fff', background: '#ef4444', fontSize: '10px', fontFamily: 'var(--font-main)' },
+                            text: `เกณฑ์ขั้นต่ำ ${minBound}°C`
+                        }
+                    },
+                    {
+                        y: maxBound,
+                        borderColor: 'rgba(239, 68, 68, 0.4)',
+                        borderWidth: 1.5,
+                        strokeDashArray: 3,
+                        label: {
+                            borderColor: 'rgba(239, 68, 68, 0.5)',
+                            style: { color: '#fff', background: '#ef4444', fontSize: '10px', fontFamily: 'var(--font-main)' },
+                            text: `เกณฑ์สูงสุด ${maxBound}${name.includes('ชื้น') ? '%' : '°C'}`
+                        }
+                    }
+                ]
+            };
+        } else if (maxBound !== undefined) {
+            // Only max boundary (for humidity)
+            annotations = {
+                yaxis: [
+                    {
+                        y: maxBound,
+                        borderColor: 'rgba(239, 68, 68, 0.4)',
+                        borderWidth: 1.5,
+                        strokeDashArray: 3,
+                        label: {
+                            borderColor: 'rgba(239, 68, 68, 0.5)',
+                            style: { color: '#fff', background: '#ef4444', fontSize: '10px', fontFamily: 'var(--font-main)' },
+                            text: `เกณฑ์ความชื้นไม่เกิน ${maxBound}%`
+                        }
+                    }
+                ]
+            };
+        }
+
+        return {
+            series: [{ name: name, data: dataPoints }],
+            chart: {
+                type: 'area',
+                height: 200,
+                sparkline: { enabled: false },
+                toolbar: { show: false },
+                animations: { enabled: true, easing: 'easeinout', speed: 800 },
+                background: 'transparent'
+            },
+            theme: { mode: 'dark' },
+            stroke: { curve: 'smooth', width: 2.5, colors: [color] },
+            fill: {
+                type: 'gradient',
+                gradient: {
+                    shadeIntensity: 1,
+                    opacityFrom: 0.4,
+                    opacityTo: 0.05,
+                    stops: [0, 95],
+                    colorStops: [
+                        { offset: 0, color: color, opacity: 0.45 },
+                        { offset: 100, color: color, opacity: 0.02 }
+                    ]
+                }
+            },
+            grid: {
+                borderColor: 'rgba(255, 255, 255, 0.05)',
+                strokeDashArray: 4,
+                padding: { left: 5, right: 5, bottom: 0, top: 10 }
+            },
+            dataLabels: { enabled: false },
+            markers: { size: 0, hover: { size: 4 } },
+            xaxis: {
+                type: 'datetime',
+                labels: {
+                    style: { colors: 'var(--text-muted)', fontSize: '10px', fontFamily: 'var(--font-main)' },
+                    datetimeUTC: false,
+                    format: 'HH:mm'
+                },
+                axisBorder: { show: false },
+                axisTicks: { show: false }
+            },
+            yaxis: {
+                labels: {
+                    style: { colors: 'var(--text-muted)', fontSize: '10px', fontFamily: 'var(--font-main)' },
+                    formatter: (val) => val.toFixed(1)
+                }
+            },
+            tooltip: {
+                theme: 'dark',
+                x: { format: 'dd MMM HH:mm น.' },
+                style: { fontSize: '12px', fontFamily: 'var(--font-main)' }
+            },
+            annotations: annotations
+        };
+    }
+
+    // Render/update the 3 ApexCharts
+    function renderCharts(feeds) {
+        // Parse time-series coordinate arrays [{x: timestamp, y: value}]
+        const fridgeSeries = [];
+        const roomSeries = [];
+        const humiditySeries = [];
+
+        feeds.forEach(feed => {
+            const time = new Date(feed.created_at).getTime();
+            
+            if (feed.field3 !== null && feed.field3 !== '') {
+                const val = parseFloat(feed.field3);
+                if (!isNaN(val)) fridgeSeries.push({ x: time, y: val });
+            }
+            if (feed.field1 !== null && feed.field1 !== '') {
+                const val = parseFloat(feed.field1);
+                if (!isNaN(val)) roomSeries.push({ x: time, y: val });
+            }
+            if (feed.field2 !== null && feed.field2 !== '') {
+                const val = parseFloat(feed.field2);
+                if (!isNaN(val)) humiditySeries.push({ x: time, y: val });
+            }
+        });
+
+        // 1. Refrigerator Chart Update
+        if (!chartFridge) {
+            const options = getChartOptions('อุณหภูมิตู้เย็น', fridgeSeries, 'var(--color-fridge)', thresholds.fridge.min, thresholds.fridge.max);
+            chartFridge = new ApexCharts(document.querySelector("#chart-fridge"), options);
+            chartFridge.render();
+        } else {
+            chartFridge.updateSeries([{ data: fridgeSeries }]);
+        }
+
+        // 2. Room Temp Chart Update
+        if (!chartRoom) {
+            const options = getChartOptions('อุณหภูมิห้องจัดยา', roomSeries, 'var(--color-room)', thresholds.room.min, thresholds.room.max);
+            chartRoom = new ApexCharts(document.querySelector("#chart-room"), options);
+            chartRoom.render();
+        } else {
+            chartRoom.updateSeries([{ data: roomSeries }]);
+        }
+
+        // 3. Humidity Chart Update
+        if (!chartHumidity) {
+            const options = getChartOptions('ความชื้นห้องจัดยา', humiditySeries, 'var(--color-humidity)', undefined, thresholds.humidity.max);
+            chartHumidity = new ApexCharts(document.querySelector("#chart-humidity"), options);
+            chartHumidity.render();
+        } else {
+            chartHumidity.updateSeries([{ data: humiditySeries }]);
+        }
+    }
+
+    // Export Loaded Telemetry Log to CSV File
+    function exportCSV() {
+        if (loadedFeeds.length === 0) {
+            alert('ไม่มีข้อมูลสำหรับการส่งออก');
+            return;
+        }
+
+        // CSV Header
+        let csvContent = '\uFEFF'; // UTF-8 BOM for Thai Excel compatibility
+        csvContent += 'Timestamp (UTC),Local Date Time,Entry ID,Pharmacy Room Temp (Field 1 - C),Humidity (Field 2 - %RH),Medicine Fridge Temp (Field 3 - C),Status Refrigerator,Status Room,Status Humidity\r\n';
+
+        feedsData = [...loadedFeeds].reverse(); // Export latest data first
+
+        feedsData.forEach(feed => {
+            const timeUTC = feed.created_at;
+            const timeLocal = new Date(timeUTC).toLocaleString('th-TH', { hour12: false }).replace(',', '');
+            const entryId = feed.entry_id;
+            
+            const field1 = feed.field1 !== null ? parseFloat(feed.field1).toFixed(3) : '';
+            const field2 = feed.field2 !== null ? parseFloat(feed.field2).toFixed(3) : '';
+            const field3 = feed.field3 !== null ? parseFloat(feed.field3).toFixed(3) : '';
+
+            // Calculate alarms for CSV logging
+            let statusFridge = 'NORMAL';
+            if (field3 !== '') {
+                const val = parseFloat(field3);
+                if (val < thresholds.fridge.min || val > thresholds.fridge.max) statusFridge = 'OUT_OF_RANGE_ALERT';
+            } else {
+                statusFridge = 'NO_DATA';
+            }
+
+            let statusRoom = 'NORMAL';
+            if (field1 !== '') {
+                const val = parseFloat(field1);
+                if (val < thresholds.room.min || val > thresholds.room.max) statusRoom = 'OUT_OF_RANGE_ALERT';
+            } else {
+                statusRoom = 'NO_DATA';
+            }
+
+            let statusHumidity = 'NORMAL';
+            if (field2 !== '') {
+                const val = parseFloat(field2);
+                if (val > thresholds.humidity.max) statusHumidity = 'HIGH_HUMIDITY_ALERT';
+            } else {
+                statusHumidity = 'NO_DATA';
+            }
+
+            csvContent += `${timeUTC},${timeLocal},${entryId},${field1},${field2},${field3},${statusFridge},${statusRoom},${statusHumidity}\r\n`;
+        });
+
+        // Create download blob
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        // Formatting File Name
+        const dateStr = new Date().toISOString().slice(0, 10);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `gsp_compliance_report_channel_${channelId}_${dateStr}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Launch Dashboard on Page Load
+    window.addEventListener('load', () => {
+        fetchDashboardData();
+    });
+</script>
+
+</body>
+</html>
