@@ -659,20 +659,6 @@
         
         <div class="info-block">
             <div class="info-icon">
-                <!-- Location pin -->
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            </div>
-            <div class="info-content">
-                <span class="info-label">สถานที่ติดตั้ง (พิกัด GSP)</span>
-                <span class="info-value" id="info-location">
-                    <span id="coords-text">กำลังโหลดพิกัด...</span>
-                    <a id="btn-map" href="#" target="_blank" class="info-link" style="margin-left:5px;">[แผนที่]</a>
-                </span>
-            </div>
-        </div>
-
-        <div class="info-block">
-            <div class="info-icon">
                 <!-- Calibration/Tool -->
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
             </div>
@@ -693,10 +679,14 @@
             </div>
         </div>
 
-        <div class="info-block" style="justify-content: flex-end;">
-            <div style="font-size:0.8rem; text-align:right; color:var(--text-muted);">
-                ThingSpeak Channel: <span id="info-channel-id" style="color:var(--text-secondary); font-weight:600;">2202414</span><br>
-                อุปกรณ์: <span style="color:var(--text-secondary); font-weight:600;">ESP32 IoT Node v2.1</span>
+        <div class="info-block">
+            <div class="info-icon">
+                <!-- Clock / Sync -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="info-content">
+                <span class="info-label">เวลาปัจจุบัน (ซิงค์กับ time1.nimt.or.th)</span>
+                <span class="info-value" id="info-current-time" style="color:var(--color-safe);">--/--/---- --:--:--</span>
             </div>
         </div>
 
@@ -811,12 +801,6 @@
 
         // Set Channel Metadata
         document.getElementById('channel-name').innerText = channel.name || 'อุณหภูมิตู้เย็นเก็บยา';
-        document.getElementById('info-channel-id').innerText = channel.id || channelId;
-        
-        if (channel.latitude && channel.longitude) {
-            document.getElementById('coords-text').innerText = `${channel.latitude}, ${channel.longitude}`;
-            document.getElementById('btn-map').href = `https://www.google.com/maps/search/?api=1&query=${channel.latitude},${channel.longitude}`;
-        }
 
         // Get values (Latest non-null values for each metric)
         const latestData = getLatestValues(feeds);
@@ -1215,9 +1199,28 @@
         document.body.removeChild(link);
     }
 
+    // Dynamically Ticking Current Time (Synchronized with local NTP)
+    function startCurrentTimeTicker() {
+        const updateTime = () => {
+            const now = new Date();
+            document.getElementById('info-current-time').innerText = now.toLocaleString('th-TH', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }) + ' น.';
+        };
+        updateTime();
+        setInterval(updateTime, 1000);
+    }
+
     // Launch Dashboard on Page Load
     window.addEventListener('load', () => {
         fetchDashboardData();
+        startCurrentTimeTicker();
     });
 </script>
 
